@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fleet &amp; Armor</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #14181d; color: #e8edf2; font: 14px/1.45 system-ui, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+  #stage { flex: 1; min-width: 0; position: relative; overflow-y: auto; }
+  #maps { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; height: 100%; box-sizing: border-box; }
+  .mapbox h3 { margin: 0 0 2px 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8fa1b3; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .mapbox h3 button { padding: 0 8px; font-size: 11px; }
+  .map { width: 100%; aspect-ratio: 20 / 14.9; }
+  #map-home { aspect-ratio: auto; }                     /* sized by fitHome() so the whole map always fits the window */
+  /* the Enemy intel map lives at the top of the right-hand column, always visible; expand it to cover the home map when you need detail */
+  #maps { flex-direction: row; gap: 10px; }
+  #box-enemy { width: clamp(230px, 20vw, 340px); flex: none; align-self: flex-start; margin-top: 8px; }
+  #box-enemy.big { position: fixed; left: 8px; top: 8px; width: calc(100vw - clamp(290px, 30vw, 440px) - 32px); z-index: 6; background: #14181d; border: 1px solid #3a4756; border-radius: 6px; padding: 6px; box-sizing: border-box; }
+  #box-home { display: flex; flex-direction: column; align-items: center; }
+  aside { width: clamp(290px, 30vw, 440px); flex: none; padding: 12px 14px; background: #1b2128; border-left: 1px solid #2c3540; overflow-y: auto; box-sizing: border-box; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8fa1b3; margin: 14px 0 6px; display: flex; justify-content: space-between; align-items: center; }
+  h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .muted { color: #8fa1b3; }
+  .blue { color: #6fb1ff; } .red { color: #ff7d6e; }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 2px 0; } td:first-child { color: #8fa1b3; width: 64px; }
+  button, select, input { background: #2c3540; color: #e8edf2; border: 1px solid #3a4756; border-radius: 5px; padding: 4px 10px; font: inherit; }
+  button, select { cursor: pointer; }
+  button:hover { background: #37444f; }
+  button.on { background: #2f6fb5; border-color: #4a8fd8; }
+  input { flex: 1; min-width: 0; cursor: text; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .row.nowrap { flex-wrap: nowrap; margin-top: 6px; }
+  .card { background: #232c36; border: 1px solid #34414f; border-left: 4px solid #f2a33a; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .card.contact { border-left-color: #ff5c4d; } .card.lowammo { border-left-color: #f2c230; }
+  .card b { color: #ffd23f; }
+  .card .opts { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  .card .opts button { text-align: left; width: 100%; }
+  .card ul.brief { margin: 6px 0 2px; padding-left: 16px; font-size: 12px; color: #b8c6d4; }
+  .card ul.brief li { margin: 2px 0; }
+  .card .opt .info { font-size: 11.5px; color: #8fa1b3; padding: 1px 4px 4px; }
+  .card .left { float: right; font-size: 12px; color: #8fa1b3; }
+  #radio { font: 12px/1.35 ui-monospace, Consolas, monospace; height: 210px; overflow-y: auto; background: #12161b; border-radius: 5px; padding: 6px 8px; }
+  #radio div { padding: 2px 0; border-bottom: 1px solid #1d242c; }
+  #radio .out { color: #9fd0ff; } #radio .in { color: #c9f0c2; } #radio .alert { color: #ff7d6e; font-weight: 600; }
+  #radio .m { display: block; color: #6f8296; letter-spacing: .06em; word-break: break-all; }
+  #radio .play { background: none; border: none; color: #8fa1b3; padding: 0 4px; cursor: pointer; }
+  #radio.nomorse .m { display: none; }
+  #log { font: 12px/1.4 ui-monospace, Consolas, monospace; max-height: 120px; overflow-y: auto; background: #12161b; border-radius: 5px; padding: 6px 8px; }
+  #agents td { padding: 1px 4px 1px 0; font-size: 12px; cursor: pointer; } #agents tr:hover { background: #232c36; } #agents tr.sel { background: #2a3745; }
+  #agents { max-height: 190px; overflow-y: auto; display: block; }
+  #notice { color: #ffb74d; min-height: 1.2em; }
+  #banner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(8, 12, 18, .78); font-size: 28px; font-weight: 700; text-align: center; padding: 20px; z-index: 5; }
+  #banner[hidden] { display: none; }
+  #banner small { font-size: 15px; font-weight: 400; margin-top: 8px; max-width: 520px; color: #c8d3de; }
+  #banner button { margin-top: 18px; font-size: 16px; padding: 8px 18px; }
+  kbd { background: #2c3540; border-radius: 3px; padding: 0 5px; }
+  #gen-console { display: none; padding: 20px 28px; max-width: 760px; overflow-y: auto; }
+  body.general { display: block; overflow-y: auto; }
+  body.general #gen-console { display: block; }
+  body.general #stage, body.general aside { display: none; }
+  #gen-log div { font: 12px/1.45 ui-monospace, Consolas, monospace; padding: 3px 0; border-bottom: 1px solid #232c36; white-space: pre-wrap; }
+  #gen-log .bad { color: #ffb74d; } #gen-log .good { color: #7ddc8a; }
+  .meter { position: relative; height: 16px; background: #12161b; border-radius: 4px; margin: 3px 0; overflow: hidden; }
+  .meter.big { height: 22px; }
+  .meter div { height: 100%; background: #4a8fd8; transition: width .5s; }
+  .meter div.fuel { background: #e0a526; } .meter div.food { background: #5fb36a; }
+  .meter span { position: absolute; inset: 0; font-size: 11px; line-height: 16px; text-align: center; color: #fff; text-shadow: 0 0 3px #000; }
+  .meter.big span { line-height: 22px; font-size: 12px; }
+  .bar { font-size: 12px; display: flex; gap: 6px; align-items: center; } .bar .meter { flex: 1; height: 8px; } .bar small { color: #8fa1b3; width: 120px; }
+  details { margin-top: 8px; } summary { cursor: pointer; color: #8fa1b3; }
+  .win-item { font-size: 12px; padding: 1px 0; } .win-item.done { color: #7ddc8a; }
+  .dec { padding: 2px 0; } .dec.success { color: #7ddc8a; } .dec.failure { color: #ff7d6e; } .dec.pending { color: #8fa1b3; }
+  .site { background: #232c36; border-radius: 5px; padding: 6px 8px; margin-top: 6px; font-size: 12px; }
+  .chip { background: #2c3540; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+  #verdict.winning { color: #7ddc8a; } #verdict.lost, #verdict.losing { color: #ff7d6e; }
+</style>
+</head>
+<body>
+<section id="gen-console" hidden>
+  <h1>Candooo's General <span class="chip">WebLLM</span></h1>
+  <p class="muted">This tab plays the enemy. It sees only what Candooo's units see, asks a language model for orders, and the server checks every order before any unit moves. Keep this tab open while you play in the other one. Close it and the scripted general takes over again.</p>
+  <div class="row"><button id="gen-load">Load the model (WebLLM)</button><button id="gen-toggle" disabled>Start playing</button><span id="gen-status" class="muted"></span></div>
+  <h2>Orders given</h2>
+  <div id="gen-log"></div>
+</section>
+<div id="stage">
+  <div id="maps">
+    <div class="mapbox" id="box-enemy"><h3>Enemy intel <button id="enemy-size" title="Shrink or expand the enemy intel map">expand ⤢</button><span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">contacts fade with age</span></h3><div id="map-enemy" class="map"></div></div>
+    <div class="mapbox" id="box-home"><h3 id="title-home">Home map</h3><div id="map-home" class="map"></div></div>
+  </div>
+  <div id="banner" hidden><span id="win-title"></span><div id="win-stars" style="font-size:34px;color:#ffd23f"></div><small id="win-why"></small><small id="win-dec"></small>
+    <div class="row" style="justify-content:center"><button id="win-new">Play again</button><button id="win-next" hidden>Next level ▶</button></div></div>
+</div>
+<aside>
+  <h1>Fleet &amp; Armor</h1>
+  <div class="muted"><b class="blue">Ladooo</b> (you, the General) vs <b class="red">Candooo</b> &middot; green = our land, red = enemy land</div>
+
+  <div class="row" style="margin-top:8px"><b id="time">00:00</b><span id="wind" class="chip" title="Wind pushes missiles and long shots off target"></span>
+    <button id="pause">Pause</button>
+    <select id="speed" title="Game speed"><option value="0.25">¼×</option><option value="0.5" selected>½×</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    <select id="think" title="While an urgent report is open the clock waits this long (real seconds) for you to read the map and decide"><option value="0">no wait</option><option value="15" selected>wait 15s</option><option value="30">wait 30s</option><option value="60">wait 60s</option></select></div>
+  <div id="thinkline" style="color:#ffd23f;min-height:1.3em;font-size:13px"></div>
+
+  <div id="camp-box" class="row" style="margin-top:8px"><button id="camp-btn" title="Play all 16 missions in order as one story. Neighbours' feelings and intelligence carry over from war to war.">Start campaign</button><span id="camp-line" class="muted" style="font-size:12px"></span></div>
+  <div id="camp-results" class="muted" style="font-size:12px"></div>
+
+  <h2>Mission <span id="level-time"></span></h2>
+  <div class="row"><select id="level"></select><button id="reset">Start level</button></div>
+  <div id="level-brief" class="muted" style="font-size:12px;margin-top:4px"></div>
+  <div id="level-goal" style="font-size:13px;margin-top:2px"></div>
+  <div class="row" style="margin-top:6px"><button id="sym-real">Realistic</button><button id="sym-tac">Tactical symbols</button><button id="ref-btn">Referee view</button></div>
+  <div style="margin-top:6px">Units: <span class="blue" id="nblue"></span> ours &middot; <span class="red" id="nred"></span> enemy &middot;
+    Objectives: <span class="blue" id="oblue"></span> / <span class="red" id="ored"></span><br>
+    <span id="intel-line" class="muted">Enemies in sight: <b id="spotted"></b> &middot; remembered: <b id="contacts"></b></span></div>
+
+  <h2>Reports <span><button id="status-all">Status of all units</button></span></h2>
+  <div id="resp" class="muted" style="font-size:12px;margin-bottom:4px"></div>
+  <div id="reports"></div>
+
+  <h2>Your units <span>click to select</span></h2>
+  <table id="agents"></table>
+  <div id="actions" class="row" style="margin-top:6px"></div>
+  <div id="notice"></div>
+
+  <h2>Talk to your units</h2>
+  <div class="row nowrap"><select id="chat-to"><option value="all">All units</option></select>
+    <input id="chat-text" placeholder="status · hold fire · move to Echo-6 · extraction …" autocomplete="off"><button id="chat-send">Send</button><button id="mic" title="Speak an order (needs a browser with speech recognition)">🎤</button></div>
+  <div class="row nowrap"><input id="morse-text" placeholder="Morse: text or dots and dashes" autocomplete="off"><button id="morse-send">Send Morse</button></div>
+  <div class="row" style="margin-top:6px"><button id="llm-btn" title="Lets a unit answer open questions in character. It reads what you type or say; it cannot give itself orders.">Enable AI voice (WebLLM)</button></div>
+  <div class="row" style="margin-top:6px"><label class="muted"><input type="checkbox" id="sound"> sound effects</label><label class="muted"><input type="checkbox" id="voice"> speak radio</label><label class="muted"><input type="checkbox" id="show-morse" checked> show Morse</label><button id="test-sound" title="Play a test sound">🔊 test</button></div>
+
+  <div id="thinking" class="muted" style="min-height:1.2em"></div>
+
+  <h2>Radio <span>▶ plays the Morse</span></h2>
+  <div id="radio"></div>
+
+  <div class="row" style="margin-top:8px"><button id="auto-btn" title="The staff plays for you: a General for the war, a President, an Intelligence Chief, Economy and Foreign Ministers. Or type 'AI take over' / 'I take over' in the chat.">AI take over</button><span id="auto-line" class="muted" style="font-size:12px"></span></div>
+
+  <div id="hf-box">
+    <h2>Home front <span id="hf-points"></span></h2>
+    <div id="hf"></div>
+    <div class="muted" style="font-size:12px;margin-top:6px">Measures at home</div>
+    <div class="row" id="hf-internal"></div>
+    <div class="muted" style="font-size:12px;margin-top:6px">Intelligence operations against them (each spy in the field earns a point every 30 s)</div>
+    <div class="row" id="hf-covert"></div>
+    <div id="hf-news" class="muted" style="font-size:12px;margin-top:6px"></div>
+  </div>
+
+  <h2>Neighbours <span id="allies"></span></h2>
+  <div id="neighbors"></div>
+
+  <div id="tl-box" hidden>
+    <h2>Timeline <span id="tl-state"></span></h2>
+    <div id="tl-rows" style="font-size:12px"></div>
+    <div id="tl-test" style="font-size:12px;margin-top:4px"></div>
+  </div>
+
+  <h2>Militants and resettlement <span id="occ-state"></span></h2>
+  <div id="occupation" style="font-size:12px"></div>
+
+  <h2>Factories and trade <span id="pp"></span></h2>
+  <div id="industry"></div>
+
+  <h2>Infiltration <span id="infil-n"></span></h2>
+  <div id="infil" class="muted" style="font-size:12px"></div>
+
+  <h2>War status <span id="verdict"></span></h2>
+  <div class="meter big"><div id="balance-fill"></div><span id="balance-text"></span></div>
+  <div id="bars"></div>
+  <div id="reasons" class="muted"></div>
+  <details><summary>How the war is won or lost</summary>
+    <div id="howwin"></div><div id="howlose"></div></details>
+
+  <h2>Supply through the strait <span id="late"></span></h2>
+  <div class="meter"><div id="fuel-fill" class="fuel"></div><span id="fuel-text"></span></div>
+  <div class="meter"><div id="food-fill" class="food"></div><span id="food-text"></span></div>
+  <div class="muted">Convoys carry fuel and food through the southern strait (the dotted lanes). Block theirs, protect yours.</div>
+
+  <h2>Decisions <span id="dec-stats"></span></h2>
+  <div id="decisions" style="font-size:12px"></div>
+
+  <h2>Intel and scenarios <span id="storm"></span></h2>
+  <div class="row"><button id="sc-informant" title="Ask HQ for an informant's tip. It is marked on the map, true or false: go and look.">Informant</button>
+    <button id="sc-defector" title="A defector gives away three enemy positions">Defector</button>
+    <button id="sc-storm" title="Call a storm: ships slow, shots drift (it hits both sides)">Storm</button></div>
+  <div id="rumors" class="muted" style="font-size:12px;margin-top:4px"></div>
+  <div class="muted" style="font-size:12px;margin-top:4px">Or just ask in chat: “HQ scenario defector”, “Ghost-1, any rumours?”. Random events also happen.</div>
+  <div class="row" style="margin-top:6px"><button id="open-general" title="Candooo's General can be played by a WebLLM model in its own tab, so its plans stay hidden from this one.">Let WebLLM play Candooo's General (new tab)</button></div>
+  <div id="ai-line" class="muted" style="font-size:12px"></div>
+
+  <h2>Reinforcements <span>limited</span></h2>
+  <div class="row" id="reinf"></div>
+  <div id="arrivals" class="muted"></div>
+  <div id="reinf-hint" class="muted" style="color:#ffd23f"></div>
+
+  <details id="doom"><summary>Last resort</summary>
+    <div class="muted">Hidden silos exist somewhere on the map. Clues appear when your units pass near. A silo cannot be aimed: it ruins every unit within 4 tiles of itself, yours and theirs, and you then concede. Only when the war is lost.</div>
+    <div id="sites"></div>
+    <div class="row" style="margin-top:6px"><button id="concede">Concede defeat</button></div>
+  </details>
+  <div class="muted">Click a unit, then a tile to move or a spotted enemy to attack. <kbd>Esc</kbd> deselects.</div>
+
+  <h2>Event log</h2>
+  <div id="log"></div>
+</aside>
+<script src="/plotly.min.js"></script>
+<script src="/anim.js"></script>
+<script src="/glue.js"></script>
+</body>
+</html>
