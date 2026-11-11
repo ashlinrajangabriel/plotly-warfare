@@ -192,7 +192,7 @@ def open_report(game, u, kind, text, options, eid=None, pos=None):
     game.reports.append(dict(id=game.seq, t=game.t, uid=u.id, callsign=u.callsign, kind=kind, text=text,
                              options=options, eid=eid, pos=pos, expires=game.t + ttl,
                              at=[u.c, u.r], foe=[foe.c, foe.r] if foe else (list(pos) if pos else None)))
-    if kind in REPORT_TTL and game.pause_on_report:      # give the General real time to read the map before the clock runs on
+    if kind in REPORT_TTL and game.pause_on_report and not game.autopilot:      # give the General real time to read the map before the clock runs on
         game.think_until = max(game.think_until, time.monotonic() + game.think_secs)
     say(game, u, text + " Request orders.", urgent=True)
 

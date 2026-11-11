@@ -34,6 +34,8 @@ def set_autopilot(game, on):
     if game.autopilot == on:
         return
     game.autopilot = on
+    if on:
+        game.think_until = 0.0                                   # the staff does not need time to think: the clock must keep running
     side = game.human
     if on:
         agents.radio(game, side, "in", "GENERAL-STAFF", "Understood, sir. The staff has command. President, intelligence chief, economy and foreign ministers are all on the job. "
@@ -102,7 +104,7 @@ def _say(game, side, who, text, speak=True):
 
 def _answer_reports(game, side):
     for rep in list(game.reports):
-        if game.t - rep["t"] < 4:                                # a few seconds to read, like a person
+        if game.t - rep["t"] < 2:                                # a moment to read, like a person
             continue
         u = game.unit_by_id(rep["uid"])
         ids = [o["id"] for o in rep["options"]]

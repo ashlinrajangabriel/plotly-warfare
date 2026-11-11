@@ -599,5 +599,20 @@ class FallBack(unittest.TestCase):
         self.assertGreater(s.hp, 3)
 
 
+class AutopilotActs(unittest.TestCase):
+    def test_the_clock_does_not_wait_for_a_human_when_the_staff_plays(self):
+        import time
+        g = fresh([U("s", "submarine", "blue", 7, 8), U("e", "destroyer", "red", 9, 8), U("far", "infantry", "red", 19, 13)])
+        g.chat("blue", "all", "AI take over")
+        s = g.unit_by_id("s")
+        s.hp = 2
+        from game import agents
+        agents.open_report(g, s, "damaged", "Heavy damage.", [dict(id="fallback", label="Fall back"), dict(id="fight_on", label="Fight on")])
+        self.assertLess(g.think_until, time.monotonic())                      # no think pause was started
+        run(g, 4)
+        self.assertEqual(g.reports, [])                                       # and the staff answered it
+        self.assertTrue(s.path or s.dest or (s.c, s.r) != (7, 8))              # and the unit is actually on the move
+
+
 if __name__ == "__main__":
     unittest.main()
