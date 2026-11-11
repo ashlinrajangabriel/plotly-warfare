@@ -141,8 +141,8 @@ def option_info(game, side, u, e, opt, a):
             fields = game.airfields(u.team)
             p = min(fields, key=lambda q: abs(q[0] - u.c) + abs(q[1] - u.r), default=None)
         else:
-            objs = [q for q, o in game.objectives.items() if o["owner"] == u.team]
-            p = min(objs, key=lambda q: abs(q[0] - u.c) + abs(q[1] - u.r), default=None)
+            from .agents import nearest_own_objective
+            p = nearest_own_objective(game, u)
         if not p:
             return "No safe ground known."
         path = game.path_for(u, p)
@@ -180,7 +180,8 @@ def report_view(game, rep):
         lines = [f"HP {u.hp}/{u.max_hp}. {len(near)} enemy unit{'s' if len(near) != 1 else ''} can still reach us. Morale {int(u.morale)}."]
         for o in rep["options"]:
             if o["id"] == "fallback":
-                p = min([q for q, ob in game.objectives.items() if ob["owner"] == u.team], key=lambda q: abs(q[0] - u.c) + abs(q[1] - u.r), default=None)
+                from .agents import nearest_own_objective
+                p = nearest_own_objective(game, u)
                 path = game.path_for(u, p) if p else None
                 info["fallback"] = f"Safe ground {grid(*p)}, ETA {_secs(game.eta(u, path) if path else None)}; it heals there." if p else "No safe ground known."
             elif o["id"] == "extract":

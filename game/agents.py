@@ -123,8 +123,22 @@ def spotted_near(game, u, extra=2):
 
 
 def nearest_own_objective(game, u):
-    objs = [p for p, o in game.objectives.items() if o["owner"] == u.team]
-    return min(objs, key=lambda p: abs(p[0] - u.c) + abs(p[1] - u.r), default=None)
+    """The nearest port or city of ours that this unit can fall back to. Ports sit one coast tile inland, so a ship cannot enter
+    them: it falls back to the nearest water we can reach beside the harbour, under the port's guns, where it also heals."""
+    objs = sorted((p for p, o in game.objectives.items() if o["owner"] == u.team), key=lambda p: abs(p[0] - u.c) + abs(p[1] - u.r))
+    if not objs:
+        return None
+    for p in objs:
+        if game.path_for(u, p):
+            return p
+    p = objs[0]
+    tiles = sorted(((abs(c - p[0]) + abs(r - p[1]), c, r) for r in range(game.board.height) for c in range(game.board.width)
+                    if rules.step_cost(u.type, game.board.terrain(c, r)) is not None and (c, r) not in game.mines and not game.unit_at(c, r)))
+    for limit in (2, 4):                                   # within 2 tiles of the harbour a ship heals; 4 is the fallback
+        for d, c, r in tiles[:40]:
+            if d <= limit and ((c, r) == (u.c, u.r) or game.path_for(u, (c, r))):
+                return (c, r)
+    return p
 
 
 def sitrep(game, u):

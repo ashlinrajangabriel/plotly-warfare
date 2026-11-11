@@ -578,5 +578,26 @@ class LastGaps(unittest.TestCase):
             self.assertTrue(levels.LEVELS[i]["news"], i)
 
 
+class FallBack(unittest.TestCase):
+    def test_every_unit_has_a_route_when_told_to_fall_back(self):
+        from game import agents
+        g = Game(seed=1, level=3)
+        g.passive_until = 10 ** 9
+        for u in [x for x in g.units if x.team == "blue" and x.stats["move"] and x.type != "supply_ship"]:
+            p = agents.nearest_own_objective(g, u)
+            self.assertIsNotNone(p, u.type)
+            self.assertTrue((u.c, u.r) == p or g.path_for(u, p) or u.air, f"{u.type} has no route to {p}")
+
+    def test_a_damaged_ship_falls_back_and_heals_beside_the_harbour(self):
+        g = fresh([U("s", "submarine", "blue", 7, 8), U("far", "infantry", "red", 19, 13)])
+        s = g.unit_by_id("s")
+        s.hp = 3
+        s.hurt_at = -99
+        from game import agents
+        self.assertNotIn("No safer", agents.pull_back(g, "blue", s))
+        run(g, 80)
+        self.assertGreater(s.hp, 3)
+
+
 if __name__ == "__main__":
     unittest.main()
